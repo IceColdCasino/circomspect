@@ -1,4 +1,4 @@
-const DOC_URL: &str = "https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md";
+const DOC_URL: &str = "https://github.com/e-jerk/circomspect/blob/main/doc/analysis_passes.md";
 
 #[derive(Copy, Clone)]
 pub enum ReportCode {
@@ -88,6 +88,7 @@ pub enum ReportCode {
     Bn254SpecificCircuit,
     UnderConstrainedSignal,
     UnusedOutputSignal,
+    SignalDependentAssert,
 }
 
 impl ReportCode {
@@ -180,6 +181,7 @@ impl ReportCode {
             Bn254SpecificCircuit => "CS0016",
             UnderConstrainedSignal => "CS0017",
             UnusedOutputSignal => "CS0018",
+            SignalDependentAssert => "CS0019",
         }
         .to_string()
     }
@@ -271,6 +273,7 @@ impl ReportCode {
             Bn254SpecificCircuit => "bn254-specific-circuit",
             UnderConstrainedSignal => "under-constrained-signal",
             UnusedOutputSignal => "unused-output-signal",
+            SignalDependentAssert => "signal-dependent-assert",
         }
         .to_string()
     }
@@ -295,6 +298,7 @@ impl ReportCode {
             Bn254SpecificCircuit => Some("bn254-specific-circuit"),
             UnderConstrainedSignal => Some("under-constrained-signal"),
             UnusedOutputSignal => Some("unused-output-signal"),
+            SignalDependentAssert => Some("signal-dependent-assert"),
             // We only provide a URL for Circomspect specific issues.
             _ => None,
         }

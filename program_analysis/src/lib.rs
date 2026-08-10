@@ -24,6 +24,7 @@ mod unconstrained_less_than;
 mod unconstrained_division;
 mod side_effect_analysis;
 mod signal_assignments;
+mod signal_dependent_assert;
 
 // Inter-process analysis passes.
 mod unused_output_signal;
@@ -47,6 +48,7 @@ pub fn get_analysis_passes() -> Vec<Box<AnalysisPass>> {
         Box::new(|_, cfg| constant_conditional::find_constant_conditional_statement(cfg)),
         Box::new(|_, cfg| under_constrained_signals::find_under_constrained_signals(cfg)),
         Box::new(|_, cfg| nonstrict_binary_conversion::find_nonstrict_binary_conversion(cfg)),
+        Box::new(|_, cfg| signal_dependent_assert::find_signal_dependent_asserts(cfg)),
         // Inter-process analysis passes.
         Box::new(unused_output_signal::find_unused_output_signals),
     ]
