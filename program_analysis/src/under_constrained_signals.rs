@@ -12,6 +12,21 @@ use crate::taint_analysis::{run_taint_analysis, TaintAnalysis};
 
 const MIN_CONSTRAINT_COUNT: usize = 2;
 
+/// Templates whose outputs are checked outside the circuit. Intermediate
+/// signals that flow into these are treated as externally constrained.
+const HASH_TEMPLATES: &[&str] = &[
+    "Poseidon",
+    "PoseidonEx",
+    "Pedersen",
+    "MiMC7",
+    "MultiMiMC7",
+    "MiMCSponge",
+    "MiMCFeistel",
+    "SMTHash1",
+    "SMTHash2",
+    "BabyPbk",
+];
+
 #[derive(PartialEq, Eq, Hash)]
 enum ConstraintLocation {
     Ordinary(FileLocation),
@@ -92,6 +107,7 @@ pub fn find_under_constrained_signals(cfg: &Cfg) -> ReportCollection {
 
     // Run taint analysis to be able to track data flow.
     let taint_analysis = run_taint_analysis(cfg);
+    let hash_components = collect_hash_components(cfg);
 
     // Compute the set of intermediate signals.
     let mut constraint_locations = cfg
@@ -123,6 +139,10 @@ pub fn find_under_constrained_signals(cfg: &Cfg) -> ReportCollection {
     for (signal, locations) in constraint_locations {
         if locations.len() < MIN_CONSTRAINT_COUNT && !locations.contains(&ConstraintLocation::Loop)
         {
+            // Hash/commitment binding is checked externally.
+            if flows_into_hash(&signal, &taint_analysis, &hash_components) {
+                continue;
+            }
             let secondary_location =
                 locations.first().and_then(|location| location.file_location());
             if let Some(declaration) = cfg.get_declaration(&signal) {
@@ -138,6 +158,44 @@ pub fn find_under_constrained_signals(cfg: &Cfg) -> ReportCollection {
     }
     debug!("{} new reports generated", reports.len());
     reports
+}
+
+fn collect_hash_components(cfg: &Cfg) -> HashSet<VariableName> {
+    use AssignOp::*;
+    use Expression::*;
+    use Statement::*;
+
+    let mut hash_components = HashSet::new();
+    for basic_block in cfg.iter() {
+        for stmt in basic_block.iter() {
+            let Substitution { meta, var, op: AssignLocalOrComponent, rhe } = stmt else {
+                continue;
+            };
+            if meta.type_knowledge().is_local() || meta.type_knowledge().is_signal() {
+                continue;
+            }
+            let rhe = if let Update { rhe, .. } = rhe { rhe.as_ref() } else { rhe };
+            if let Call { name, .. } = rhe {
+                if HASH_TEMPLATES.contains(&name.as_str()) {
+                    hash_components.insert(var.clone());
+                    hash_components.insert(var.without_version());
+                }
+            }
+        }
+    }
+    hash_components
+}
+
+fn flows_into_hash(
+    name: &VariableName,
+    taint: &TaintAnalysis,
+    hash_components: &HashSet<VariableName>,
+) -> bool {
+    if hash_components.is_empty() {
+        return false;
+    }
+    taint.taints_any(name, hash_components)
+        || taint.taints_any(&name.without_version(), hash_components)
 }
 
 fn visit_statement(
