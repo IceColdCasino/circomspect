@@ -1,5 +1,13 @@
 # Release Notes
 
+## Unreleased
+
+### Features
+
+-   New analysis pass (`signal-dependent-assert`) that errors on `assert`
+    statements whose conditions depend on signals or component outputs.
+    Template-parameter and compile-time constant asserts are still allowed.
+
 ## v0.8.1 (2023-03-21)
 
 -   Updated dependencies flagged by cargo-audit.

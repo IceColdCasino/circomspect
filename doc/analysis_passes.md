@@ -174,6 +174,21 @@ Circomlib templates that may be problematic when used together with curves other
 
 As functions and templates grow in complexity they become more difficult to review and maintain. This typically indicates that the code should be refactored into smaller, more easily understandable, components. Circomspect uses cyclomatic complexity to estimate the complexity of each function and template, and will generate a warning if the code is considered too complex. Circomspect will also generate a warning if a function or template takes too many arguments, as this also impacts the readability of the code.
 
+### Signal-dependent assert
+
+Circom `assert` statements are checked only during witness generation; they do not introduce constraints into the circuit. Circomspect will emit an error if an assert condition depends on a signal (directly, through a local variable, or through a sub-component output). Asserts that only involve template parameters and compile-time constants are allowed.
+
+For example, the following should use a constraint instead of `assert`:
+
+```cpp
+  template Bad(n) {
+      signal input in;
+      assert(in < n);  // Not enforced by the circuit.
+  }
+```
+
+Prefer `===` / `<==` (or a dedicated range-check template) when the property must hold for every satisfying witness.
+
 ### Bitwise complement
 
 Circom supports taking the 256-bit complement `~x` of a field element `x`. Since the result is reduced modulo `p`, it will typically not satisfy the expected relations `(~x)ᵢ == ~(xᵢ)` for each bit `i`, which could lead to surprising results.
