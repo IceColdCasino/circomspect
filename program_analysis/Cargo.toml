@@ -1,12 +1,12 @@
 [package]
 name = "circomspect-program-analysis"
-version = "0.8.2"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.65"
 license = "LGPL-3.0-only"
-authors = ["Trail of Bits"]
+authors = ["Trail of Bits", "e-jerk"]
 description = "Support crate for the Circomspect static analyzer"
-repository = "https://github.com/trailofbits/circomspect"
+repository = "https://github.com/e-jerk/circomspect"
 
 [dependencies]
 anyhow = "1.0"

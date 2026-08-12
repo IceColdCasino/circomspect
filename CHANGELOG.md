@@ -1,12 +1,21 @@
 # Release Notes
 
-## Unreleased
+## v0.10.0 (2026-08-12)
+
+Fork release from [e-jerk/circomspect](https://github.com/e-jerk/circomspect), based on upstream Circomspect 0.9.0.
 
 ### Features
 
 -   New analysis pass (`signal-dependent-assert`) that errors on `assert`
     statements whose conditions depend on signals or component outputs.
     Template-parameter and compile-time constant asserts are still allowed.
+
+### Bug fixes
+
+-   Reduce false positives from the unconstrained `LessThan` / `Num2Bits`
+    analysis for constants, template arguments, loop locals, template inputs,
+    safe intermediates, component outputs, and hash/commitment-bound signals.
+-   Apply the same hash-bound exemption in the under-constrained signals pass.
 
 ## v0.8.1 (2023-03-21)
 

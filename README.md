@@ -1,19 +1,21 @@
 # Circomspect 🔎
 
-![Crates.io badge](https://img.shields.io/crates/v/circomspect.svg) ![GitHub badge](https://github.com/trailofbits/circomspect/actions/workflows/ci.yml/badge.svg)
+![GitHub release](https://img.shields.io/github/v/release/e-jerk/circomspect) ![GitHub badge](https://github.com/e-jerk/circomspect/actions/workflows/ci.yml/badge.svg)
 
 Circomspect is a static analyzer and linter for the [Circom](https://iden3.io/circom) programming language. The codebase borrows heavily from the Rust Circom compiler built by [iden3](https://github.com/iden3).
 
+This repository is an [e-jerk](https://github.com/e-jerk/circomspect) fork of [Trail of Bits Circomspect](https://github.com/trailofbits/circomspect). The upstream crate remains available on [crates.io](https://crates.io/crates/circomspect).
+
 Circomspect currently implements a number of analysis passes which can identify potential issues in Circom circuits. It is our goal to continue to add new analysis passes to be able to detect more issues in the future.
 
-![Circomspect example image](https://github.com/trailofbits/circomspect/raw/main/doc/circomspect.png)
+![Circomspect example image](https://github.com/e-jerk/circomspect/raw/main/doc/circomspect.png)
 
 ## Installing Circomspect
 
-Circomspect is available on [crates.io](https://crates.io/crates/circomspect) and can be installed by invoking
+Install this fork from GitHub with
 
 ```sh
-  cargo install circomspect
+  cargo install --git https://github.com/e-jerk/circomspect --tag v0.10.0 --locked circomspect
 ```
 
 To build Circomspect from source, simply clone the repository and build the
@@ -35,10 +37,10 @@ By default, Circomspect outputs warnings and errors to stdout. To see informatio
 
 To output the results to a Sarif file (which can be read by the [VSCode Sarif Viewer](https://marketplace.visualstudio.com/items?itemName=MS-SarifVSCode.sarif-viewer)), use the option `--sarif-file`.
 
-![VSCode example image](https://github.com/trailofbits/circomspect/raw/main/doc/vscode.png)
+![VSCode example image](https://github.com/e-jerk/circomspect/raw/main/doc/vscode.png)
 
 Circomspect supports the same curves that Circom does: BN254, BLS12-381, and Goldilocks. If you are using a different curve than the default (BN254) you can set the curve using the command line option `--curve`.
 
 ## Analysis Passes
 
-Circomspect implements analysis passes for a number of different types of issues. A complete list, together with a high-level description of each issue, can be found [here](https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md).
+Circomspect implements analysis passes for a number of different types of issues. A complete list, together with a high-level description of each issue, can be found [here](https://github.com/e-jerk/circomspect/blob/main/doc/analysis_passes.md).
