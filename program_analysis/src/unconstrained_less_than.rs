@@ -1,14 +1,34 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use log::{debug, trace};
 
 use num_bigint::BigInt;
 use program_structure::cfg::Cfg;
+use program_structure::ir::degree_meta::DegreeMeta;
 use program_structure::ir::value_meta::{ValueMeta, ValueReduction};
+use program_structure::ir::variable_meta::VariableMeta;
 use program_structure::report_code::ReportCode;
 use program_structure::report::{Report, ReportCollection};
 use program_structure::ir::*;
+
+use crate::taint_analysis::{run_taint_analysis, TaintAnalysis};
+
+/// Templates whose outputs are checked outside the circuit (public hash /
+/// commitment binding). Signals that flow into these are treated as
+/// externally constrained for LessThan bit-range purposes.
+const HASH_TEMPLATES: &[&str] = &[
+    "Poseidon",
+    "PoseidonEx",
+    "Pedersen",
+    "MiMC7",
+    "MultiMiMC7",
+    "MiMCSponge",
+    "MiMCFeistel",
+    "SMTHash1",
+    "SMTHash2",
+    "BabyPbk",
+];
 
 pub struct UnconstrainedLessThanWarning {
     value: Expression,
@@ -116,6 +136,9 @@ struct ConstraintData {
 /// are not constrained to be <= p/2 using `Num2Bits`.
 pub fn find_unconstrained_less_than(cfg: &Cfg) -> ReportCollection {
     debug!("running unconstrained less-than analysis pass");
+    let taint_analysis = run_taint_analysis(cfg);
+    let hash_components = collect_hash_components(cfg);
+    let safe_signals = collect_safe_signals(cfg, &taint_analysis, &hash_components);
     let mut components = HashMap::new();
     for basic_block in cfg.iter() {
         for stmt in basic_block.iter() {
@@ -152,6 +175,12 @@ pub fn find_unconstrained_less_than(cfg: &Cfg) -> ReportCollection {
         if data.less_than.is_empty() {
             continue;
         }
+        // Skip values that are fixed, loop locals, template inputs (and
+        // intermediates derived from them), component outputs, or bound via
+        // hashing/commitments managed externally.
+        if is_safe_less_than_input(&value, cfg, &taint_analysis, &safe_signals) {
+            continue;
+        }
         // Check if the value is constrained to be positive.
         let mut is_positive = false;
         for bit_size in &data.bit_sizes {
@@ -170,6 +199,109 @@ pub fn find_unconstrained_less_than(cfg: &Cfg) -> ReportCollection {
     }
     debug!("{} new reports generated", reports.len());
     reports
+}
+
+/// Collect signals that are safe LessThan sources: template inputs, component
+/// outputs, hash-bound signals, constants/template-params, and any signal
+/// assigned only from other safe sources (e.g. `twoN <== nActual * 2`).
+fn collect_safe_signals(
+    cfg: &Cfg,
+    taint: &TaintAnalysis,
+    hash_components: &HashSet<VariableName>,
+) -> HashSet<VariableName> {
+    use AssignOp::*;
+    use Expression::*;
+    use SignalType::*;
+    use Statement::*;
+    use VariableType::*;
+
+    let mut safe = HashSet::new();
+
+    // Seed with inputs, components, and hash-bound signals.
+    for (name, decl) in cfg.declarations().iter() {
+        match decl.variable_type() {
+            Signal(Input, _) | Component | AnonymousComponent => {
+                safe.insert(name.clone());
+            }
+            Signal(_, _) if flows_into_hash(name, taint, hash_components) => {
+                safe.insert(name.clone());
+            }
+            _ => {}
+        }
+    }
+
+    // Propagate through signal assignments from safe-only expressions.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for basic_block in cfg.iter() {
+            for stmt in basic_block.iter() {
+                let Substitution { meta, var, op, rhe } = stmt else {
+                    continue;
+                };
+                if !matches!(op, AssignConstraintSignal | AssignSignal) {
+                    continue;
+                }
+                // Only track ordinary signal assignments, not component updates.
+                if !meta.type_knowledge().is_signal() {
+                    continue;
+                }
+                let value = if let Update { rhe, .. } = rhe { rhe.as_ref() } else { rhe };
+                if expression_from_safe_sources(value, cfg, taint, &safe) && safe.insert(var.clone())
+                {
+                    trace!("signal `{var:?}` derived from externally constrained sources");
+                    changed = true;
+                }
+            }
+        }
+    }
+    safe
+}
+
+/// Returns true if every variable in `value` is a safe LessThan source.
+fn expression_from_safe_sources(
+    value: &Expression,
+    cfg: &Cfg,
+    taint: &TaintAnalysis,
+    safe_signals: &HashSet<VariableName>,
+) -> bool {
+    if value.is_constant() {
+        return true;
+    }
+    if value.degree().map(|range| range.is_constant()).unwrap_or(false) {
+        return true;
+    }
+    let vars = value.variables_read().map(|var| var.name().clone()).collect::<HashSet<_>>();
+    !vars.is_empty()
+        && vars.iter().all(|name| variable_is_safe_source(name, cfg, taint, safe_signals))
+}
+
+/// Collect component variables that instantiate a hash/commitment template.
+fn collect_hash_components(cfg: &Cfg) -> HashSet<VariableName> {
+    use AssignOp::*;
+    use Expression::*;
+    use Statement::*;
+
+    let mut hash_components = HashSet::new();
+    for basic_block in cfg.iter() {
+        for stmt in basic_block.iter() {
+            let Substitution { meta, var, op: AssignLocalOrComponent, rhe } = stmt else {
+                continue;
+            };
+            if meta.type_knowledge().is_local() || meta.type_knowledge().is_signal() {
+                continue;
+            }
+            let rhe = if let Update { rhe, .. } = rhe { rhe.as_ref() } else { rhe };
+            if let Call { name, .. } = rhe {
+                if HASH_TEMPLATES.contains(&name.as_str()) {
+                    trace!("hash/commitment component `{var:?}` (`{name}`) found");
+                    hash_components.insert(var.clone());
+                    hash_components.insert(var.without_version());
+                }
+            }
+        }
+    }
+    hash_components
 }
 
 fn update_components(stmt: &Statement, components: &mut HashMap<VariableAccess, Component>) {
@@ -260,6 +392,82 @@ fn update_inputs(
     }
 }
 
+/// Returns true if a LessThan input does not need an explicit Num2Bits
+/// non-negativity constraint in this template.
+#[must_use]
+fn is_safe_less_than_input(
+    value: &Expression,
+    cfg: &Cfg,
+    taint: &TaintAnalysis,
+    safe_signals: &HashSet<VariableName>,
+) -> bool {
+    expression_from_safe_sources(value, cfg, taint, safe_signals)
+}
+
+fn variable_is_safe_source(
+    name: &VariableName,
+    cfg: &Cfg,
+    taint: &TaintAnalysis,
+    safe_signals: &HashSet<VariableName>,
+) -> bool {
+    use SignalType::*;
+    use VariableType::*;
+
+    if safe_signals.contains(name) || safe_signals.contains(&name.without_version()) {
+        return true;
+    }
+    if cfg.parameters().contains(name) || cfg.parameters().contains(&name.without_version()) {
+        return true;
+    }
+
+    match lookup_var_type(cfg, name) {
+        // Loop indices and other locals that do not depend on signals. (SSA
+        // phi nodes often drop constant degree knowledge for induction vars.)
+        Some(Local) => !is_tainted_by_signal(name, cfg, taint),
+        // Template inputs are constrained by the caller / protocol.
+        Some(Signal(Input, _)) => true,
+        // Subcomponent outputs are constrained inside the callee.
+        Some(Component | AnonymousComponent) => true,
+        Some(Signal(Output | Intermediate, _)) => false,
+        None => false,
+    }
+}
+
+/// Look up a variable's type, including SSA-versioned locals.
+///
+/// `Cfg::get_type` strips versions before lookup, but local declarations are
+/// stored under versioned keys after SSA conversion.
+fn lookup_var_type<'a>(cfg: &'a Cfg, name: &VariableName) -> Option<&'a VariableType> {
+    if let Some(var_type) = cfg.get_type(name) {
+        return Some(var_type);
+    }
+    cfg.declarations().iter().find_map(|(key, decl)| {
+        (key.name() == name.name() && key.suffix() == name.suffix())
+            .then_some(decl.variable_type())
+    })
+}
+
+fn is_tainted_by_signal(name: &VariableName, cfg: &Cfg, taint: &TaintAnalysis) -> bool {
+    use VariableType::*;
+    let sinks = HashSet::from([name.clone(), name.without_version()]);
+    cfg.declarations().iter().any(|(source, decl)| {
+        matches!(decl.variable_type(), Signal(_, _) | Component | AnonymousComponent)
+            && taint.taints_any(source, &sinks)
+    })
+}
+
+fn flows_into_hash(
+    name: &VariableName,
+    taint: &TaintAnalysis,
+    hash_components: &HashSet<VariableName>,
+) -> bool {
+    if hash_components.is_empty() {
+        return false;
+    }
+    taint.taints_any(name, hash_components)
+        || taint.taints_any(&name.without_version(), hash_components)
+}
+
 #[must_use]
 fn build_report(value: &Expression, data: &ConstraintData) -> Report {
     UnconstrainedLessThanWarning {
@@ -283,94 +491,144 @@ mod tests {
 
     #[test]
     fn test_unconstrained_less_than() {
+        // Template inputs and intermediates derived from them are external.
         let src = r#"
             template Test(n) {
-              signal input small;
-              signal input large;
+              signal input a;
+              signal input b;
+              signal small;
+              signal large;
               signal output ok;
 
-              // Check that small < large.
+              small <== a;
+              large <== b;
+
               component lt = LessThan(n);
               lt.in[0] <== small;
               lt.in[1] <== large;
-
-              ok <== lt.out;
-            }
-        "#;
-        validate_reports(src, 2);
-
-        let src = r#"
-            template Test(n) {
-              signal input small;
-              signal input large;
-              signal output ok;
-
-              // Constrain inputs to n bits.
-              component n2b[2];
-              n2b[0] = Num2Bits(n);
-              n2b[0].in <== small;
-              n2b[1] = Num2Bits(n + 1);
-              n2b[1].in <== large;
-
-              // Check that small < large.
-              component lt = LessThan(n);
-              lt.in[0] <== small;
-              lt.in[1] <== large;
-
-              ok <== lt.out;
-            }
-        "#;
-        validate_reports(src, 2);
-
-        let src = r#"
-            template Test(n) {
-              signal input small;
-              signal input large;
-              signal output ok;
-
-              // Constrain inputs to n bits.
-              component n2b[2];
-              n2b[0] = Num2Bits(n);
-              n2b[0].in <== small;
-              n2b[1] = Num2Bits(32);
-              n2b[1].in <== large;
-
-              // Check that small < large.
-              component lt = LessThan(n);
-              lt.in[0] <== small;
-              lt.in[1] <== large;
-
-              ok <== lt.out;
-            }
-        "#;
-        validate_reports(src, 1);
-
-        let src = r#"
-            template Test(n) {
-              signal input small;
-              signal input large;
-              signal output ok;
-
-              // Check that small < large.
-              component lt = LessThan(n);
-              lt.in[1] <== large;
-              lt.in[0] <== small;
-
-              // Constrain inputs to n bits.
-              component n2b[2];
-              n2b[0] = Num2Bits(32);
-              n2b[0].in <== small;
-              n2b[1] = Num2Bits(64);
-              n2b[1].in <== large;
 
               ok <== lt.out;
             }
         "#;
         validate_reports(src, 0);
+
+        // Arithmetic over inputs (twoN <== n*2, sum <== a+b, gated <== e*in).
+        let src = r#"
+            template Test(n) {
+              signal input nActual;
+              signal twoN;
+              signal output ok;
+
+              twoN <== nActual * 2;
+              component lt = LessThan(5);
+              lt.in[0] <== 0;
+              lt.in[1] <== twoN;
+              ok <== lt.out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        let src = r#"
+            template Test() {
+              signal input a;
+              signal input b;
+              signal sum;
+              signal output ok;
+
+              sum <== a + b;
+              component lt = LessThan(5);
+              lt.in[0] <== sum;
+              lt.in[1] <== 10;
+              ok <== lt.out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        let src = r#"
+            template Test() {
+              signal input enabled;
+              signal input in;
+              signal gated;
+              signal output ok;
+
+              gated <== enabled * in;
+              component lt = LessThan(8);
+              lt.in[0] <== gated;
+              lt.in[1] <== 10;
+              ok <== lt.out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        // Fixed constants / template parameters do not need Num2Bits.
+        let src = r#"
+            template Test(n) {
+              signal output ok;
+
+              component lt = LessThan(8);
+              lt.in[0] <== 3;
+              lt.in[1] <== n + 1;
+
+              ok <== lt.out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        // Loop induction variables are compile-time non-negative.
+        let src = r#"
+            template Test(n) {
+              signal input vals[n];
+              signal output out;
+              component active[n];
+              for (var i = 0; i < n; i++) {
+                active[i] = LessThan(8);
+                active[i].in[0] <== i;
+                active[i].in[1] <== vals[i];
+              }
+              out <== active[0].out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        // Signals that flow into a hash/commitment are managed externally.
+        let src = r#"
+            template Test(n) {
+              signal input a;
+              signal mid;
+              signal output ok;
+              signal output h;
+
+              mid <== a;
+              component hash = Poseidon(1);
+              hash.inputs[0] <== mid;
+
+              component lt = LessThan(8);
+              lt.in[0] <== mid;
+              lt.in[1] <== 10;
+
+              ok <== lt.out;
+              h <== hash.out;
+            }
+        "#;
+        validate_reports(src, 0);
+
+        // A signal with no externally constrained derivation should still warn.
+        let src = r#"
+            template Test() {
+              signal ghost;
+              signal output ok;
+
+              ghost <-- ghost + 1;
+              component lt = LessThan(8);
+              lt.in[0] <== ghost;
+              lt.in[1] <== 10;
+              ok <== lt.out;
+            }
+        "#;
+        validate_reports(src, 1);
     }
 
     fn validate_reports(src: &str, expected_len: usize) {
-        // Build CFG.
         let mut reports = ReportCollection::new();
         let cfg = parse_definition(src)
             .unwrap()
@@ -380,8 +638,14 @@ mod tests {
             .unwrap();
         assert!(reports.is_empty());
 
-        // Generate report collection.
         let reports = find_unconstrained_less_than(&cfg);
-        assert_eq!(reports.len(), expected_len);
+        assert_eq!(
+            reports.len(),
+            expected_len,
+            "src produced {} reports, expected {}: {}",
+            reports.len(),
+            expected_len,
+            src
+        );
     }
 }
