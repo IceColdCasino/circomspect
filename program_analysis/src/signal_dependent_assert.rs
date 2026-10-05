@@ -20,8 +20,7 @@ pub struct SignalDependentAssertWarning {
 impl SignalDependentAssertWarning {
     pub fn into_report(self) -> Report {
         let mut report = Report::error(
-            "Assert statements that depend on signals are not enforced by the circuit."
-                .to_string(),
+            "Assert statements that depend on signals are not enforced by the circuit.".to_string(),
             ReportCode::SignalDependentAssert,
         );
         if let Some(file_id) = self.file_id {
@@ -92,11 +91,8 @@ fn signal_dependency_reason(
     signal_sources: &HashSet<VariableName>,
     taint: &TaintAnalysis,
 ) -> Option<String> {
-    let direct_signals = statement
-        .signals_read()
-        .iter()
-        .map(|signal| signal.to_string())
-        .collect::<Vec<_>>();
+    let direct_signals =
+        statement.signals_read().iter().map(|signal| signal.to_string()).collect::<Vec<_>>();
     if !direct_signals.is_empty() {
         return Some(format!("direct signal read: {}", direct_signals.join(", ")));
     }
@@ -107,10 +103,7 @@ fn signal_dependency_reason(
         .map(|component| component.to_string())
         .collect::<Vec<_>>();
     if !direct_components.is_empty() {
-        return Some(format!(
-            "direct component signal read: {}",
-            direct_components.join(", ")
-        ));
+        return Some(format!("direct component signal read: {}", direct_components.join(", ")));
     }
 
     let local_reads = statement.locals_read().iter().collect::<Vec<_>>();

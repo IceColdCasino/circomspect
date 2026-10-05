@@ -14,7 +14,7 @@ use crate::file_definition::{FileID, FileLibrary};
 const SARIF_VERSION: &str = "2.1.0";
 const DRIVER_NAME: &str = "Circomspect";
 const ORGANIZATION: &str = "Trail of Bits";
-const DOWNLOAD_URI: &str = "https://github.com/e-jerk/circomspect";
+const DOWNLOAD_URI: &str = "https://github.com/IceColdCasino/circomspect";
 
 /// A trait for objects that can be converted into a Sarif artifact.
 pub trait ToSarif {

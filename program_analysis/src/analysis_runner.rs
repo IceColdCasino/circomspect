@@ -19,7 +19,7 @@ use program_structure::template_library::TemplateLibrary;
 
 use crate::{
     analysis_context::{AnalysisContext, AnalysisError},
-    get_analysis_passes, config,
+    get_analysis_passes, config, parallel_output_in_loop,
 };
 
 type CfgCache = HashMap<String, Cfg>;
@@ -131,13 +131,20 @@ impl AnalysisRunner {
     }
 
     fn analyze_template<W: LogWriter + ReportWriter>(&mut self, name: &str, writer: &mut W) {
-        writer.write_message(&format!("analyzing template '{name}'"));
+        writer.write_message(format!("analyzing template '{name}'"));
 
         // We take ownership of the CFG and any previously generated reports
         // here to avoid holding multiple mutable and immutable references to
         // `self`. This may lead to the CFG being regenerated during analysis if
         // the template is invoked recursively. If it is then ¯\_(ツ)_/¯.
-        let mut reports = self.take_template_reports(name);
+        let parallel_templates =
+            parallel_output_in_loop::parallel_template_names(&self.template_asts);
+        let mut reports = if let Some(ast) = self.template_asts.get(name) {
+            parallel_output_in_loop::find_parallel_output_joins(ast.get_body(), &parallel_templates)
+        } else {
+            ReportCollection::new()
+        };
+        reports.append(&mut self.take_template_reports(name));
         if let Ok(cfg) = self.take_template(name) {
             for analysis_pass in get_analysis_passes() {
                 reports.append(&mut analysis_pass(self, &cfg));
@@ -161,7 +168,7 @@ impl AnalysisRunner {
     }
 
     fn analyze_function<W: LogWriter + ReportWriter>(&mut self, name: &str, writer: &mut W) {
-        writer.write_message(&format!("analyzing function '{name}'"));
+        writer.write_message(format!("analyzing function '{name}'"));
 
         // We take ownership of the CFG and any previously generated reports
         // here to avoid holding multiple mutable and immutable references to

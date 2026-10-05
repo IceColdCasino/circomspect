@@ -313,6 +313,7 @@ pub enum Expression {
 }
 
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum Access {
     ComponentAccess(String),
     ArrayAccess(Expression),
@@ -363,6 +364,7 @@ pub enum ExpressionPrefixOpcode {
 }
 
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum LogArgument {
     LogStr(String),
     LogExp(Expression),

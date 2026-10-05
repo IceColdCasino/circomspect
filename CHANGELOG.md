@@ -1,5 +1,17 @@
 # Release Notes
 
+## v0.11.0 (2026-10-05)
+
+The repository now lives at [IceColdCasino/circomspect](https://github.com/IceColdCasino/circomspect).
+
+### Features
+
+-   New analysis pass (`parallel-output-in-loop`) that warns when a `parallel`
+    component is read in the same loop that starts it. Witness generation joins
+    that call before the next iteration. Assigning inputs in the start loop is
+    allowed. Templates declared `parallel` are included even when the call omits
+    the keyword.
+
 ## v0.10.0 (2026-08-12)
 
 Fork release from [e-jerk/circomspect](https://github.com/e-jerk/circomspect), based on upstream Circomspect 0.9.0.

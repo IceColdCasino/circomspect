@@ -1,4 +1,5 @@
-const DOC_URL: &str = "https://github.com/e-jerk/circomspect/blob/main/doc/analysis_passes.md";
+const DOC_URL: &str =
+    "https://github.com/IceColdCasino/circomspect/blob/main/doc/analysis_passes.md";
 
 #[derive(Copy, Clone)]
 pub enum ReportCode {
@@ -89,6 +90,7 @@ pub enum ReportCode {
     UnderConstrainedSignal,
     UnusedOutputSignal,
     SignalDependentAssert,
+    ParallelOutputInLoop,
 }
 
 impl ReportCode {
@@ -182,6 +184,7 @@ impl ReportCode {
             UnderConstrainedSignal => "CS0017",
             UnusedOutputSignal => "CS0018",
             SignalDependentAssert => "CS0019",
+            ParallelOutputInLoop => "CS0020",
         }
         .to_string()
     }
@@ -274,6 +277,7 @@ impl ReportCode {
             UnderConstrainedSignal => "under-constrained-signal",
             UnusedOutputSignal => "unused-output-signal",
             SignalDependentAssert => "signal-dependent-assert",
+            ParallelOutputInLoop => "parallel-output-in-loop",
         }
         .to_string()
     }
@@ -299,6 +303,7 @@ impl ReportCode {
             UnderConstrainedSignal => Some("under-constrained-signal"),
             UnusedOutputSignal => Some("unused-output-signal"),
             SignalDependentAssert => Some("signal-dependent-assert"),
+            ParallelOutputInLoop => Some("parallel-output-in-loop"),
             // We only provide a URL for Circomspect specific issues.
             _ => None,
         }

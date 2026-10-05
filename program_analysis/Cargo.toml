@@ -1,12 +1,12 @@
 [package]
 name = "circomspect-program-analysis"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 rust-version = "1.65"
 license = "LGPL-3.0-only"
-authors = ["Trail of Bits", "e-jerk"]
+authors = ["Trail of Bits", "IceColdCasino"]
 description = "Support crate for the Circomspect static analyzer"
-repository = "https://github.com/e-jerk/circomspect"
+repository = "https://github.com/IceColdCasino/circomspect"
 
 [dependencies]
 anyhow = "1.0"
@@ -15,8 +15,8 @@ num-bigint-dig = "0.8"
 num-traits = "0.2"
 thiserror = "1.0"
 parser = { package = "circomspect-parser", version = "2.2.0", path = "../parser" }
-program_structure = { package = "circomspect-program-structure", version = "2.1.4", path = "../program_structure" }
+program_structure = { package = "circomspect-program-structure", version = "2.1.5", path = "../program_structure" }
 
 [dev-dependencies]
 parser = { package = "circomspect-parser", version = "2.2.0", path = "../parser" }
-program_structure = { package = "circomspect-program-structure", version = "2.1.4", path = "../program_structure" }
+program_structure = { package = "circomspect-program-structure", version = "2.1.5", path = "../program_structure" }

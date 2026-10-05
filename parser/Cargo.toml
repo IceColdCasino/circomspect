@@ -6,7 +6,7 @@ rust-version = "1.65"
 build = "build.rs"
 license = "LGPL-3.0-only"
 description = "Support crate for the Circomspect static analyzer"
-repository = "https://github.com/e-jerk/circomspect"
+repository = "https://github.com/IceColdCasino/circomspect"
 authors = [
   "Hermenegildo <hermegar@ucm.es>",
   "Fredrik Dahlgren <fredrik.dahlgren@trailofbits.com>",
@@ -19,7 +19,7 @@ num-bigint-dig = "0.8"
 num-traits = "0.2"
 
 [dependencies]
-program_structure = { package = "circomspect-program-structure", version = "2.1.4", path = "../program_structure" }
+program_structure = { package = "circomspect-program-structure", version = "2.1.5", path = "../program_structure" }
 lalrpop = { version = "0.20", features = ["lexer"] }
 lalrpop-util = "0.20"
 log = "0.4"
@@ -31,4 +31,4 @@ serde = "1.0"
 serde_derive = "1.0"
 
 [dev-dependencies]
-program_structure = { package = "circomspect-program-structure", version = "2.1.4", path = "../program_structure" }
+program_structure = { package = "circomspect-program-structure", version = "2.1.5", path = "../program_structure" }

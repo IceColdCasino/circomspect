@@ -189,6 +189,30 @@ For example, the following should use a constraint instead of `assert`:
 
 Prefer `===` / `<==` (or a dedicated range-check template) when the property must hold for every satisfying witness.
 
+### Parallel output in loop
+
+Circom runs a `parallel` component on its own witness thread, then joins that thread as soon as the parent reads one of the component's signals. If the read is in the same loop that instantiates the component, the next iteration cannot start until the current call finishes, so the calls run one at a time. On a large loop this is several times slower than starting every component first.
+
+```cpp
+  // Slow: `foo[i].out` joins `foo[i]` before `foo[i + 1]` is started.
+  for (var i = 0; i < n; i++) {
+      foo[i] = parallel Worker();
+      foo[i].in <== in[i];
+      out[i] <== foo[i].out;
+  }
+
+  // Fast: every worker is running before any output is read.
+  for (var i = 0; i < n; i++) {
+      foo[i] = parallel Worker();
+      foo[i].in <== in[i];
+  }
+  for (var i = 0; i < n; i++) {
+      out[i] <== foo[i].out;
+  }
+```
+
+Assigning an input (`foo[i].in <== ...`) does not join the component. Reading an output in a later loop, including a loop that starts a different parallel component, is fine. The same warning applies to anonymous `parallel` components used inside a loop, and to templates declared `template Worker() parallel`.
+
 ### Bitwise complement
 
 Circom supports taking the 256-bit complement `~x` of a field element `x`. Since the result is reduced modulo `p`, it will typically not satisfy the expected relations `(~x)ᵢ == ~(xᵢ)` for each bit `i`, which could lead to surprising results.

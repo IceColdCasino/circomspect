@@ -111,7 +111,7 @@ fn main() -> ExitCode {
             .add_filter(move |report: &Report| filter_by_file(report, &user_inputs))
             .add_filter(move |report: &Report| filter_by_id(report, &allow_list));
         if sarif_writer.write_reports(stdout_writer.reports(), runner.file_library()) > 0 {
-            stdout_writer.write_message(&format!("Result written to `{}`.", sarif_file.display()));
+            stdout_writer.write_message(format!("Result written to `{}`.", sarif_file.display()));
         }
     }
 
@@ -126,7 +126,7 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
         n => {
-            stdout_writer.write_message(&format!("{n} issues found."));
+            stdout_writer.write_message(format!("{n} issues found."));
             ExitCode::FAILURE
         }
     }

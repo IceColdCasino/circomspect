@@ -247,7 +247,8 @@ fn collect_safe_signals(
                     continue;
                 }
                 let value = if let Update { rhe, .. } = rhe { rhe.as_ref() } else { rhe };
-                if expression_from_safe_sources(value, cfg, taint, &safe) && safe.insert(var.clone())
+                if expression_from_safe_sources(value, cfg, taint, &safe)
+                    && safe.insert(var.clone())
                 {
                     trace!("signal `{var:?}` derived from externally constrained sources");
                     changed = true;
@@ -377,7 +378,7 @@ fn update_inputs(
         let index_access = component_access.pop();
         let signal_access = component_access.pop();
         let component = VariableAccess::new(var, &component_access);
-        if let Some(Component::LessThan { .. }) = components.get(&component) {
+        if let Some(Component::LessThan) = components.get(&component) {
             let (Some(ComponentAccess(signal_name)), Some(ArrayAccess(_))) =
                 (signal_access, index_access)
             else {
@@ -442,8 +443,7 @@ fn lookup_var_type<'a>(cfg: &'a Cfg, name: &VariableName) -> Option<&'a Variable
         return Some(var_type);
     }
     cfg.declarations().iter().find_map(|(key, decl)| {
-        (key.name() == name.name() && key.suffix() == name.suffix())
-            .then_some(decl.variable_type())
+        (key.name() == name.name() && key.suffix() == name.suffix()).then_some(decl.variable_type())
     })
 }
 
