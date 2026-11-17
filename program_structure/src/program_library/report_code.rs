@@ -91,6 +91,8 @@ pub enum ReportCode {
     UnusedOutputSignal,
     SignalDependentAssert,
     ParallelOutputInLoop,
+    MissingParallel,
+    LoopInvariantOperation,
 }
 
 impl ReportCode {
@@ -185,6 +187,8 @@ impl ReportCode {
             UnusedOutputSignal => "CS0018",
             SignalDependentAssert => "CS0019",
             ParallelOutputInLoop => "CS0020",
+            MissingParallel => "CS0021",
+            LoopInvariantOperation => "CS0022",
         }
         .to_string()
     }
@@ -278,6 +282,8 @@ impl ReportCode {
             UnusedOutputSignal => "unused-output-signal",
             SignalDependentAssert => "signal-dependent-assert",
             ParallelOutputInLoop => "parallel-output-in-loop",
+            MissingParallel => "missing-parallel",
+            LoopInvariantOperation => "loop-invariant-operation",
         }
         .to_string()
     }
@@ -304,6 +310,8 @@ impl ReportCode {
             UnusedOutputSignal => Some("unused-output-signal"),
             SignalDependentAssert => Some("signal-dependent-assert"),
             ParallelOutputInLoop => Some("parallel-output-in-loop"),
+            MissingParallel => Some("missing-parallel"),
+            LoopInvariantOperation => Some("loop-invariant-operation"),
             // We only provide a URL for Circomspect specific issues.
             _ => None,
         }

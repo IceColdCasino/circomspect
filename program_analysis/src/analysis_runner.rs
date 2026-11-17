@@ -19,7 +19,7 @@ use program_structure::template_library::TemplateLibrary;
 
 use crate::{
     analysis_context::{AnalysisContext, AnalysisError},
-    get_analysis_passes, config, parallel_output_in_loop,
+    get_analysis_passes, config, loop_invariant, missing_parallel, parallel_output_in_loop,
 };
 
 type CfgCache = HashMap<String, Cfg>;
@@ -140,7 +140,20 @@ impl AnalysisRunner {
         let parallel_templates =
             parallel_output_in_loop::parallel_template_names(&self.template_asts);
         let mut reports = if let Some(ast) = self.template_asts.get(name) {
-            parallel_output_in_loop::find_parallel_output_joins(ast.get_body(), &parallel_templates)
+            let mut reports = parallel_output_in_loop::find_parallel_output_joins(
+                ast.get_body(),
+                &parallel_templates,
+            );
+            reports.append(&mut missing_parallel::find_missing_parallel(
+                ast.get_body(),
+                &parallel_templates,
+                &self.template_asts,
+            ));
+            reports.append(&mut loop_invariant::find_loop_invariant_operations(
+                ast.get_body(),
+                &self.template_asts,
+            ));
+            reports
         } else {
             ReportCollection::new()
         };

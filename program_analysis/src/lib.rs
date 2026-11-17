@@ -23,6 +23,8 @@ mod under_constrained_signals;
 mod unconstrained_less_than;
 mod unconstrained_division;
 mod side_effect_analysis;
+mod loop_invariant;
+mod missing_parallel;
 mod parallel_output_in_loop;
 mod signal_assignments;
 mod signal_dependent_assert;

@@ -1,5 +1,18 @@
 # Release Notes
 
+## v0.12.0 (2026-11-17)
+
+### Features
+
+-   New analysis pass (`missing-parallel`) that warns when a component's witness
+    can overlap other work and neither the instantiation nor the template is
+    marked `parallel`. A loop-carried chain is excluded, and so are comparators,
+    bit converters, and templates that only wrap them.
+-   New analysis pass (`loop-invariant-operation`) that warns when a loop repeats
+    work that does not depend on the loop index. The whole component can move
+    out of the loop when every input is invariant. When only some inputs are
+    invariant, a subcomponent that reads just those inputs is reported too.
+
 ## v0.11.0 (2026-10-05)
 
 The repository now lives at [IceColdCasino/circomspect](https://github.com/IceColdCasino/circomspect).

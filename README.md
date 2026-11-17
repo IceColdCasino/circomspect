@@ -15,7 +15,7 @@ Circomspect currently implements a number of analysis passes which can identify 
 Install this fork from GitHub with
 
 ```sh
-  cargo install --git https://github.com/IceColdCasino/circomspect --tag v0.11.0 --locked circomspect
+  cargo install --git https://github.com/IceColdCasino/circomspect --tag v0.12.0 --locked circomspect
 ```
 
 To build Circomspect from source, simply clone the repository and build the

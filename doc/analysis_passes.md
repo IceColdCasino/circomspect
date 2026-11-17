@@ -213,6 +213,61 @@ Circom runs a `parallel` component on its own witness thread, then joins that th
 
 Assigning an input (`foo[i].in <== ...`) does not join the component. Reading an output in a later loop, including a loop that starts a different parallel component, is fine. The same warning applies to anonymous `parallel` components used inside a loop, and to templates declared `template Worker() parallel`.
 
+### Missing parallel
+
+Circomspect warns when a component is not marked `parallel` and its witness can overlap other work. `parallel` does not change the constraints. A template declared `template Worker() parallel` is already covered, so its instantiations are not reported again.
+
+The warning fires in two situations:
+
+- A loop starts one component per iteration, and a later iteration does not need this component's outputs. The instances can run together. If the loop also reads an output, move that read to a later loop so the calls are not joined one at a time.
+- Two components are both started and given their inputs before either output is read, and neither input depends on the other. Either component can take the keyword. A component that stays unread across a later loop of other components is the same case.
+
+A chain is not reported. If each iteration feeds this component's output into the next iteration, the next call cannot start until the current one finishes, so `parallel` does not help.
+
+Comparators (`IsEqual`, `LessThan`, `Num2Bits`, `Bits2Num`, logic gates, `BabyAdd`) are not reported, and neither is a template that only wraps those. A witness thread costs more than running them on the parent thread. Poseidon, scalar multiplication, and any template that contains that work are still reported.
+
+```cpp
+  // Reported: the Poseidon calls are independent, but they are not parallel.
+  for (var c = 0; c < n; c++) {
+      chunk[c] = Poseidon(sz);
+      chunk[c].inputs[j] <== in[c * sz + j];
+      h[c] <== chunk[c].out;
+  }
+
+  // Not reported: each add waits on the previous output.
+  for (var i = 0; i < n; i++) {
+      adder[i] = BabyAdd();
+      adder[i].x1 <== acc[i];
+      acc[i + 1] <== adder[i].xout;
+  }
+```
+
+### Loop-invariant operation
+
+Circomspect warns when a loop repeats an operation whose inputs do not depend on the loop index. The circuit computes the same value on every iteration. Compute it once before the loop and pass the result in.
+
+A component instantiated in the loop is reported when every signal wired to it is loop-invariant. A component that also takes a per-iteration input is reported when one of its subcomponents depends only on the invariant inputs. The bit decomposition of a secret key is the usual case: every decryption in the loop splits the same scalar.
+
+```cpp
+  // Reported: `Num2Bits` inside `Decrypt` reads only `privateKey`.
+  for (var i = 0; i < n; i++) {
+      decrypt[i] = Decrypt();
+      decrypt[i].ciphertext <== ciphertext[i];
+      decrypt[i].privateKey <== privateKey;
+  }
+
+  // Not reported: the decomposition is computed once and passed in.
+  component skBits = PrivateKeyBits();
+  skBits.privateKey <== privateKey;
+  for (var i = 0; i < n; i++) {
+      decrypt[i] = Decrypt();
+      decrypt[i].ciphertext <== ciphertext[i];
+      decrypt[i].privateKeyBits <== skBits.out;
+  }
+```
+
+The index used to choose the component slot (`decrypt[i]`) does not count as an input. A template parameter that changes with the index, such as `Num2Bits(i)`, cannot be moved out of the loop.
+
 ### Bitwise complement
 
 Circom supports taking the 256-bit complement `~x` of a field element `x`. Since the result is reduced modulo `p`, it will typically not satisfy the expected relations `(~x)ᵢ == ~(xᵢ)` for each bit `i`, which could lead to surprising results.
